@@ -108,20 +108,34 @@ InitTestScene*.unity*
 # MacOS
 .DS_Store
 
-# Third-party Asset Store packages
+# Plastic SCM
+.plastic/
+
+# Third-party Asset Store packages (folders and their .meta files)
 Assets/2D Animal Character Pack/
+Assets/2D Animal Character Pack.meta
 Assets/2D Pixel Art Icon/
+Assets/2D Pixel Art Icon.meta
 Assets/4000+SinplePixelIconPack/
+Assets/4000+SinplePixelIconPack.meta
 Assets/Cainos/
+Assets/Cainos.meta
 Assets/DEVNIK 2D/
+Assets/DEVNIK 2D.meta
 Assets/DownloadPackages/
+Assets/DownloadPackages.meta
 Assets/FX/
+Assets/FX.meta
 Assets/Font/
+Assets/Font.meta
 Assets/Hodgepodge Pack/
+Assets/Hodgepodge Pack.meta
 Assets/JazzCreate/
+Assets/JazzCreate.meta
 
 # Unity recovery files
 Assets/_Recovery/
+Assets/_Recovery.meta
 
 # Standalone font files in root
 *.otf
