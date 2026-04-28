@@ -74,36 +74,52 @@ public class SettingsManager : MonoBehaviour
     
     void LoadSettings()
     {
+        float master = Mathf.Clamp01(PlayerPrefs.GetFloat("MasterVolume", 0.75f));
+        float music = Mathf.Clamp01(PlayerPrefs.GetFloat("MusicVolume", 0.3f));
+        float sfx = Mathf.Clamp01(PlayerPrefs.GetFloat("SFXVolume", 0.5f));
+
         if (masterVolumeSlider != null)
-            masterVolumeSlider.value = PlayerPrefs.GetFloat("MasterVolume", 0.75f);
+            masterVolumeSlider.value = master;
         if (musicVolumeSlider != null)
-            musicVolumeSlider.value = PlayerPrefs.GetFloat("MusicVolume", 0.75f);
+            musicVolumeSlider.value = music;
         if (sfxVolumeSlider != null)
-            sfxVolumeSlider.value = PlayerPrefs.GetFloat("SFXVolume", 0.75f);
+            sfxVolumeSlider.value = sfx;
         if (fullscreenToggle != null)
             fullscreenToggle.isOn = PlayerPrefs.GetInt("Fullscreen", 1) == 1;
+
+        // Apply loaded values through AudioManager (the single volume authority)
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.SetMasterVolume(master);
+            AudioManager.Instance.SetMusicVolume(music);
+            AudioManager.Instance.SetSFXVolume(sfx);
+        }
     }
     
     // ==================== AUDIO ====================
     
     public void SetMasterVolume(float value)
     {
-        AudioListener.volume = value;
-        PlayerPrefs.SetFloat("MasterVolume", value);
+        float v = Mathf.Clamp01(value);
+        PlayerPrefs.SetFloat("MasterVolume", v);
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.SetMasterVolume(v);
     }
     
     public void SetMusicVolume(float value)
     {
-        PlayerPrefs.SetFloat("MusicVolume", value);
+        float v = Mathf.Clamp01(value);
+        PlayerPrefs.SetFloat("MusicVolume", v);
         if (AudioManager.Instance != null)
-            AudioManager.Instance.SetMusicVolume(value);
+            AudioManager.Instance.SetMusicVolume(v);
     }
     
     public void SetSFXVolume(float value)
     {
-        PlayerPrefs.SetFloat("SFXVolume", value);
+        float v = Mathf.Clamp01(value);
+        PlayerPrefs.SetFloat("SFXVolume", v);
         if (AudioManager.Instance != null)
-            AudioManager.Instance.SetSFXVolume(value);
+            AudioManager.Instance.SetSFXVolume(v);
     }
     
     // ==================== DISPLAY ====================
@@ -119,7 +135,7 @@ public class SettingsManager : MonoBehaviour
         // Apply resolution
         if (resolutionDropdown != null && resolutions != null && resolutions.Length > 0)
         {
-            int index = resolutionDropdown.value;
+            int index = Mathf.Clamp(resolutionDropdown.value, 0, resolutions.Length - 1);
             Resolution res = resolutions[index];
             Screen.SetResolution(res.width, res.height, Screen.fullScreen);
             PlayerPrefs.SetInt("ResolutionIndex", index);

@@ -21,28 +21,27 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float minY = -10f;
     [SerializeField] private float maxY = 10f;
     
+    private Vector3 velocity;
+
     void LateUpdate()
     {
         if (target == null) return;
         
-        // Calculate target position
         Vector3 desiredPosition = target.position + offset;
         
-        // Apply boundaries
         if (useBounds)
         {
             desiredPosition.x = Mathf.Clamp(desiredPosition.x, minX, maxX);
             desiredPosition.y = Mathf.Clamp(desiredPosition.y, minY, maxY);
         }
         
-        // Smooth follow
-        Vector3 smoothedPosition = Vector3.Lerp(
+        float smoothTime = smoothSpeed > 0.01f ? 1f / smoothSpeed : 0.1f;
+        transform.position = Vector3.SmoothDamp(
             transform.position,
             desiredPosition,
-            smoothSpeed * Time.deltaTime
+            ref velocity,
+            smoothTime
         );
-        
-        transform.position = smoothedPosition;
     }
     
     public void SetTarget(Transform newTarget)

@@ -4,6 +4,7 @@
 // DESCRIPTION: In-game pause menu with resume, settings, quit
 // ============================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -36,12 +37,13 @@ public class PauseMenuController : MonoBehaviour
         // Start unpaused
         if (pausePanel != null) pausePanel.SetActive(false);
         if (settingsPanel != null) settingsPanel.SetActive(false);
+        WireSettingsBackButton();
     }
     
     void Update()
     {
         // Toggle pause with Escape
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (GameInput.PausePressed)
         {
             if (settingsPanel != null && settingsPanel.activeSelf)
                 CloseSettings();
@@ -85,6 +87,21 @@ public class PauseMenuController : MonoBehaviour
     
     // ==================== SETTINGS ====================
     
+    void WireSettingsBackButton()
+    {
+        if (settingsPanel == null) return;
+        Button[] buttons = settingsPanel.GetComponentsInChildren<Button>(true);
+        foreach (var btn in buttons)
+        {
+            string lower = btn.gameObject.name.ToLowerInvariant();
+            if (lower.Contains("back") || lower.Contains("return"))
+            {
+                btn.onClick.RemoveListener(CloseSettings);
+                btn.onClick.AddListener(CloseSettings);
+            }
+        }
+    }
+    
     public void OpenSettings()
     {
         if (pausePanel != null) pausePanel.SetActive(false);
@@ -101,8 +118,12 @@ public class PauseMenuController : MonoBehaviour
     
     public void ReturnToMainMenu()
     {
+        // Auto-save before leaving gameplay
+        if (SaveManager.Instance != null && GameManager.Instance != null)
+            SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
+
         Time.timeScale = 1f;
-        SceneManager.LoadScene(0); // Main menu
+        SceneManager.LoadScene(SceneNames.MainMenu);
         Debug.Log("[PauseMenu] Returning to main menu");
     }
     

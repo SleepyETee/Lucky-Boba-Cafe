@@ -4,6 +4,7 @@
 // DESCRIPTION: Interactable station that triggers crafting
 // ============================================================
 using UnityEngine;
+using System.Collections;
 using TMPro;
 
 public class CraftingStation : MonoBehaviour, IInteractable
@@ -20,17 +21,18 @@ public class CraftingStation : MonoBehaviour, IInteractable
     
     private bool playerInRange = false;
     private TextMeshPro promptText;
+    private Coroutine resetCoroutine;
     
     void Start()
     {
         // Auto-find CraftingMinigame if not assigned
         if (craftingMinigame == null)
         {
-            craftingMinigame = FindFirstObjectByType<CraftingMinigame>();
+            craftingMinigame = FindAnyObjectByType<CraftingMinigame>();
             if (craftingMinigame == null)
             {
                 CraftingMinigame[] all = FindObjectsByType<CraftingMinigame>(
-                    FindObjectsInactive.Include, FindObjectsSortMode.None);
+                    FindObjectsInactive.Include);
                 if (all.Length > 0)
                     craftingMinigame = all[0];
             }
@@ -38,7 +40,7 @@ public class CraftingStation : MonoBehaviour, IInteractable
         
         // Auto-find CustomerSpawner if not assigned
         if (customerSpawner == null)
-            customerSpawner = FindFirstObjectByType<CustomerSpawner>();
+            customerSpawner = FindAnyObjectByType<CustomerSpawner>();
         
         // Create the "Press E" prompt
         CreateInteractionPrompt();
@@ -51,7 +53,7 @@ public class CraftingStation : MonoBehaviour, IInteractable
         promptObj.transform.localPosition = new Vector3(0f, 1.2f, 0f);
         
         promptText = promptObj.AddComponent<TextMeshPro>();
-        promptText.text = "Press [E]";
+        promptText.text = "Press E";
         promptText.fontSize = 4f;
         promptText.alignment = TextAlignmentOptions.Center;
         promptText.color = Color.white;
@@ -78,41 +80,65 @@ public class CraftingStation : MonoBehaviour, IInteractable
             {
                 promptText.text = "No orders!";
                 promptText.color = Color.red;
-                CancelInvoke(nameof(ResetPromptText));
-                Invoke(nameof(ResetPromptText), 1f);
+                if (resetCoroutine != null) StopCoroutine(resetCoroutine);
+                resetCoroutine = StartCoroutine(DelayedResetPrompt(1f));
             }
             return;
         }
         
         // Get the current order name to pass to the minigame
         string drinkName = "";
+        bool needsTopping = true;
         if (customerSpawner != null)
         {
             Customer customer = customerSpawner.GetWaitingCustomer();
             if (customer != null)
+            {
                 drinkName = customer.CurrentOrder;
+                needsTopping = customer.CurrentOrderNeedsTopping;
+            }
         }
         
         // Start minigame
         if (craftingMinigame != null)
         {
-            craftingMinigame.StartMinigame(drinkName);
+            craftingMinigame.OnCraftingComplete -= OnMinigameFinished;
+            craftingMinigame.OnCraftingComplete += OnMinigameFinished;
+
+            craftingMinigame.StartMinigame(drinkName, needsTopping);
             
-            // Hide prompt while in minigame
             if (promptText != null)
                 promptText.gameObject.SetActive(false);
             
-            // Freeze player
-            PlayerController player = FindFirstObjectByType<PlayerController>();
+            PlayerController player = FindAnyObjectByType<PlayerController>();
             if (player != null) player.Freeze();
         }
     }
+
+    void OnMinigameFinished(float quality)
+    {
+        if (craftingMinigame != null)
+            craftingMinigame.OnCraftingComplete -= OnMinigameFinished;
+
+        if (playerInRange && promptText != null)
+        {
+            ResetPromptText();
+            promptText.gameObject.SetActive(true);
+        }
+    }
     
+    IEnumerator DelayedResetPrompt(float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
+        ResetPromptText();
+        resetCoroutine = null;
+    }
+
     void ResetPromptText()
     {
         if (promptText != null)
         {
-            promptText.text = "";
+            promptText.text = "Press E";
             promptText.color = Color.white;
         }
     }
@@ -142,8 +168,14 @@ public class CraftingStation : MonoBehaviour, IInteractable
             promptText.gameObject.SetActive(false);
     }
     
+    void OnDestroy()
+    {
+        if (craftingMinigame != null)
+            craftingMinigame.OnCraftingComplete -= OnMinigameFinished;
+    }
+
     public string GetInteractionPrompt()
     {
-        return $"Press [E] to use {stationName}";
+        return $"Press E to use {stationName}";
     }
 }

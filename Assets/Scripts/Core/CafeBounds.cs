@@ -37,21 +37,27 @@ public class CafeBounds : MonoBehaviour
             new Vector2(thickness, top - bottom));
     }
     
+    [Header("Physics")]
+    [SerializeField] private string wallLayerName = "Wall";
+
     void CreateWall(string wallName, Vector2 position, Vector2 size)
     {
         GameObject wall = new GameObject(wallName);
         wall.transform.parent = transform;
         wall.transform.position = position;
         
+        int layer = LayerMask.NameToLayer(wallLayerName);
+        if (layer >= 0)
+            wall.layer = layer;
+        
         BoxCollider2D col = wall.AddComponent<BoxCollider2D>();
         col.size = size;
         col.isTrigger = false;
         
-        // Add a static Rigidbody2D for reliable collision
         Rigidbody2D rb = wall.AddComponent<Rigidbody2D>();
         rb.bodyType = RigidbodyType2D.Static;
         
-        Debug.Log($"[CafeBounds] Created {wallName} at {position}, size={size}");
+        Debug.Log($"[CafeBounds] Created {wallName} at {position}, size={size}, layer={wall.layer}");
     }
     
     // Show the bounds in the Scene view for easy editing

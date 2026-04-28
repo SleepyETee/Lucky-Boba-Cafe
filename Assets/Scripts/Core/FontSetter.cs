@@ -4,6 +4,7 @@
 // DESCRIPTION: Applies JazzCreateBubble font to ALL TextMeshPro
 //              text elements in the scene at runtime.
 // ============================================================
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
@@ -19,8 +20,23 @@ public class FontSetter : MonoBehaviour
     
     void Start()
     {
+        EnsureFallback();
         if (applyOnStart)
             ApplyFontToAll();
+    }
+
+    void EnsureFallback()
+    {
+        if (jazzFont == null) return;
+
+        TMP_FontAsset defaultFont = TMP_Settings.defaultFontAsset;
+        if (defaultFont == null || defaultFont == jazzFont) return;
+
+        if (jazzFont.fallbackFontAssetTable == null)
+            jazzFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
+
+        if (!jazzFont.fallbackFontAssetTable.Contains(defaultFont))
+            jazzFont.fallbackFontAssetTable.Add(defaultFont);
     }
     
     /// <summary>
@@ -41,7 +57,7 @@ public class FontSetter : MonoBehaviour
         if (applyToWorldText)
         {
             TextMeshPro[] worldTexts = FindObjectsByType<TextMeshPro>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None);
+                FindObjectsInactive.Include);
             foreach (var t in worldTexts)
             {
                 t.font = jazzFont;
@@ -53,7 +69,7 @@ public class FontSetter : MonoBehaviour
         if (applyToUIText)
         {
             TextMeshProUGUI[] uiTexts = FindObjectsByType<TextMeshProUGUI>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None);
+                FindObjectsInactive.Include);
             foreach (var t in uiTexts)
             {
                 t.font = jazzFont;

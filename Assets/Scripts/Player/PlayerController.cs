@@ -4,6 +4,7 @@
 // DESCRIPTION: Handles player movement, sprint, and interaction
 // ============================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
 public class PlayerController : MonoBehaviour
@@ -17,6 +18,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private Animator animator;
     
+    void Awake()
+    {
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
+        if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+        if (animator == null) animator = GetComponent<Animator>();
+    }
+
     // Movement state
     private Vector2 moveInput;
     private bool isSprinting;
@@ -31,6 +39,7 @@ public class PlayerController : MonoBehaviour
     private static readonly int MoveXHash = Animator.StringToHash("MoveX");
     private static readonly int MoveYHash = Animator.StringToHash("MoveY");
     private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
+    private static readonly int InteractHash = Animator.StringToHash("Interact");
     
     void Update()
     {
@@ -60,23 +69,21 @@ public class PlayerController : MonoBehaviour
     
     void HandleMovementInput()
     {
-        // Get WASD/Arrow input
-        moveInput.x = Input.GetAxisRaw("Horizontal");
-        moveInput.y = Input.GetAxisRaw("Vertical");
-        
-        // Normalize to prevent faster diagonal movement
+        moveInput = GameInput.MoveInput;
+
         if (moveInput.magnitude > 1f)
             moveInput.Normalize();
-        
-        // Sprint with Shift
-        isSprinting = Input.GetKey(KeyCode.LeftShift);
+
+        isSprinting = GameInput.SprintHeld;
     }
     
     void HandleInteractionInput()
     {
-        // Press E to interact
-        if (Input.GetKeyDown(KeyCode.E) && currentTarget != null)
+        if (GameInput.InteractPressed && currentTarget != null)
         {
+            if (animator != null && animator.isActiveAndEnabled)
+                animator.SetTrigger(InteractHash);
+
             currentTarget.Interact();
         }
         

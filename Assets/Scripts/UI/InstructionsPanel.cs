@@ -6,20 +6,17 @@
 //              the player presses Space.
 // ============================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class InstructionsPanel : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private GameObject panelContainer;
-    
-    [Header("Input")]
-    [SerializeField] private KeyCode dismissKey = KeyCode.Space;
 
     private bool isShowing = false;
 
     void Start()
     {
-        // Automatically show instructions if a panel is assigned
         if (panelContainer != null)
         {
             Show();
@@ -28,9 +25,11 @@ public class InstructionsPanel : MonoBehaviour
 
     void Update()
     {
-        // Listen for the dismiss key when showing
-        if (isShowing && Input.GetKeyDown(dismissKey))
+        if (!isShowing) return;
+
+        if (GameInput.ConfirmPressed || GameInput.EnterPressed || GameInput.ClickPressed)
         {
+            Debug.Log("[InstructionsPanel] Input detected — hiding panel.");
             Hide();
         }
     }
@@ -45,7 +44,7 @@ public class InstructionsPanel : MonoBehaviour
         // Pause the game
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.SetPaused(true);
+            GameManager.Instance.RequestPause();
         }
     }
 
@@ -61,7 +60,7 @@ public class InstructionsPanel : MonoBehaviour
         // Unpause the game
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.SetPaused(false);
+            GameManager.Instance.ReleasePause();
         }
     }
 }
