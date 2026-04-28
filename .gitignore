@@ -69,3 +69,21 @@ crashlytics-build.properties
 
 # MacOS
 .DS_Store
+
+# Third-party Asset Store packages
+Assets/2D Animal Character Pack/
+Assets/2D Pixel Art Icon/
+Assets/4000+SinplePixelIconPack/
+Assets/Cainos/
+Assets/DEVNIK 2D/
+Assets/DownloadPackages/
+Assets/FX/
+Assets/Font/
+Assets/Hodgepodge Pack/
+Assets/JazzCreate/
+
+# Unity recovery files
+Assets/_Recovery/
+
+# Standalone font files in root
+*.otf
