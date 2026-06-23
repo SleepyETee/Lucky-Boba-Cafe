@@ -137,6 +137,9 @@ public class SaveManager : MonoBehaviour
             "ActiveQuests", "CompletedQuests",
             "Recipes",
             "PendingDeliveries",
+            "BeachTicketBought",
+            "Inventory",
+            "InventoryLastRestockDay",
         };
         foreach (string key in saveKeys)
             PlayerPrefs.DeleteKey(key);

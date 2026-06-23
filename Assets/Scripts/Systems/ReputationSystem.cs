@@ -99,6 +99,7 @@ public class ReputationSystem : MonoBehaviour
     public void SetReputation(float points)
     {
         reputationPoints = Mathf.Max(0f, points);
+        OnReputationChanged?.Invoke(reputationPoints);
         RecalculateStars();
     }
 

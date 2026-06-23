@@ -114,6 +114,7 @@ public class DaySummaryUI : MonoBehaviour
         if (mainMenuButton != null)
             mainMenuButton.onClick.AddListener(ReturnToMainMenu);
  
+        EnsureStoryBriefing();
         BeginDay();
     }
  
@@ -171,10 +172,12 @@ public class DaySummaryUI : MonoBehaviour
             EvaluateAndTriggerDayEnd();
         }
  
+#if UNITY_EDITOR
         if (GameInput.WasKeyPressedThisFrame(endDayKey) || GameInput.WasKeyPressedThisFrame(alternateEndDayKey))
         {
             TriggerManualDayEnd();
         }
+#endif
     }
 
     void TriggerManualDayEnd()
@@ -260,6 +263,9 @@ public class DaySummaryUI : MonoBehaviour
             DayNightCycle.Instance.SnapToHour(6f);
 
         endedDayNumber = GetCurrentDaySafe();
+        if (InventorySystem.Instance != null)
+            InventorySystem.Instance.ApplyMorningRestockForDay(endedDayNumber);
+
         if (endedDayNumber > totalDays && totalDays > 0)
         {
             endedDayNumber = totalDays;
@@ -279,6 +285,14 @@ public class DaySummaryUI : MonoBehaviour
         dailyGoal = CalculateDailyGoal(endedDayNumber);
         ApplyDifficultyForDay(endedDayNumber);
         UpdateDayHud();
+    }
+
+    void EnsureStoryBriefing()
+    {
+        if (FindAnyObjectByType<StoryManager>() != null)
+            return;
+
+        gameObject.AddComponent<StoryManager>();
     }
  
     int GetCurrentDaySafe()
@@ -395,7 +409,7 @@ public class DaySummaryUI : MonoBehaviour
         if (titleText != null)
         {
             if (finalWin)
-                titleText.text = "~ YOU WIN! ~";
+                titleText.text = "~ Lucky Boba Cafe Is Saved! ~";
             else if (endedManually)
                 titleText.text = $"~ Day {endedDayNumber} Closed Early ~";
             else if (dayWasWin)
@@ -442,13 +456,13 @@ public class DaySummaryUI : MonoBehaviour
         if (continueText != null)
         {
             if (finalWin)
-                continueText.text = "Congratulations! You completed all days!";
+                continueText.text = "The cafe is safe. Keep saving PawCoins for the beach ticket, or head back to the title screen.";
             else if (endedManually)
-                continueText.text = "Day ended early. Choose what to do next:";
+                continueText.text = "You closed early. Retry the day, visit the village, or return to the menu.";
             else if (dayWasWin)
-                continueText.text = "Choose what to do next:";
+                continueText.text = "After closing, choose how to spend the evening. Preparing tomorrow at the shop is the main path.";
             else
-                continueText.text = "Don't give up!";
+                continueText.text = "Don't give up. Retry the day, or return to the title screen.";
         }
  
         if (summaryPanel != null)
@@ -480,6 +494,9 @@ public class DaySummaryUI : MonoBehaviour
             SetButtonActive(visitVillageButton, true);
             SetButtonActive(makeDeliveryButton, hasDeliveries);
             SetButtonActive(mainMenuButton, true);
+            SetButtonLabel(nextDayButton, "Prepare Tomorrow");
+            SetButtonLabel(visitVillageButton, "Visit Village");
+            SetButtonLabel(makeDeliveryButton, $"Make Deliveries ({pending})");
         }
         else if (endedManually)
         {
@@ -492,6 +509,9 @@ public class DaySummaryUI : MonoBehaviour
             SetButtonActive(visitVillageButton, true);
             SetButtonActive(makeDeliveryButton, hasDeliveries);
             SetButtonActive(mainMenuButton, true);
+            SetButtonLabel(retryButton, "Retry Day");
+            SetButtonLabel(visitVillageButton, "Visit Village");
+            SetButtonLabel(makeDeliveryButton, $"Make Deliveries ({pending})");
         }
         else
         {
@@ -507,6 +527,13 @@ public class DaySummaryUI : MonoBehaviour
     void SetButtonActive(Button btn, bool active)
     {
         if (btn != null) btn.gameObject.SetActive(active);
+    }
+
+    void SetButtonLabel(Button btn, string label)
+    {
+        if (btn == null || string.IsNullOrEmpty(label)) return;
+        TextMeshProUGUI text = btn.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (text != null) text.text = label;
     }
  
     // ==================== KEYBOARD SHORTCUTS (still work) ====================

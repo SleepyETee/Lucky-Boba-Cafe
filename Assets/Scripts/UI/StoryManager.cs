@@ -7,6 +7,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using TMPro;
+using UnityEngine.UI;
 
 public class StoryManager : MonoBehaviour
 {
@@ -29,6 +30,8 @@ public class StoryManager : MonoBehaviour
 
     void Start()
     {
+        EnsureRuntimeUI();
+
         if (continuePrompt != null)
             continuePrompt.text = "Press Space to start";
 
@@ -48,6 +51,8 @@ public class StoryManager : MonoBehaviour
 
     void ShowBriefing()
     {
+        EnsureRuntimeUI();
+
         int day = 1;
         if (GameManager.Instance != null)
             day = Mathf.Max(1, GameManager.Instance.CurrentDay);
@@ -71,6 +76,54 @@ public class StoryManager : MonoBehaviour
             if (GameManager.Instance != null)
                 GameManager.Instance.RequestPause();
         }
+    }
+
+    void EnsureRuntimeUI()
+    {
+        if (dialoguePanel != null && dialogueText != null)
+            return;
+
+        GameObject canvasObj = new GameObject("StoryBriefingCanvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 100;
+        canvasObj.AddComponent<CanvasScaler>();
+        canvasObj.AddComponent<GraphicRaycaster>();
+
+        dialoguePanel = new GameObject("StoryBriefingPanel");
+        dialoguePanel.transform.SetParent(canvasObj.transform, false);
+        Image panelImage = dialoguePanel.AddComponent<Image>();
+        panelImage.color = new Color(0f, 0f, 0f, 0.82f);
+
+        RectTransform panelRect = dialoguePanel.GetComponent<RectTransform>();
+        panelRect.anchorMin = Vector2.zero;
+        panelRect.anchorMax = Vector2.one;
+        panelRect.offsetMin = Vector2.zero;
+        panelRect.offsetMax = Vector2.zero;
+
+        dialogueText = CreateTMP("StoryBriefingText", dialoguePanel.transform, new Vector2(0.12f, 0.28f), new Vector2(0.88f, 0.78f), 40, TextAlignmentOptions.Center);
+        continuePrompt = CreateTMP("StoryBriefingPrompt", dialoguePanel.transform, new Vector2(0.2f, 0.12f), new Vector2(0.8f, 0.22f), 26, TextAlignmentOptions.Center);
+        dialoguePanel.SetActive(false);
+    }
+
+    TextMeshProUGUI CreateTMP(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, float fontSize, TextAlignmentOptions alignment)
+    {
+        GameObject obj = new GameObject(name);
+        obj.transform.SetParent(parent, false);
+
+        TextMeshProUGUI text = obj.AddComponent<TextMeshProUGUI>();
+        text.fontSize = fontSize;
+        text.alignment = alignment;
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.color = Color.white;
+
+        RectTransform rect = obj.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        return text;
     }
 
     void Dismiss()

@@ -105,6 +105,7 @@ public class CustomerSpawner : MonoBehaviour
             int charmLevel = GameManager.Instance.GetUpgradeLevelByName("Cat Charm");
             patienceBonus = charmLevel * 5f;
         }
+        patienceBonus += CafeProgression.PatienceBonusSeconds;
 
         if (customerPatienceOverrideSeconds > 0f)
             customer.SetMaxPatience(customerPatienceOverrideSeconds + patienceBonus);
@@ -251,6 +252,7 @@ public class CustomerSpawner : MonoBehaviour
         maxActiveCustomers = Mathf.Max(1, newMaxActiveCustomers);
         if (GameManager.Instance != null)
             maxActiveCustomers += GameManager.Instance.GetUpgradeLevelByName("Extra Counter");
+        maxActiveCustomers += CafeProgression.ExtraCustomerCapacity;
 
         customerPatienceOverrideSeconds = newCustomerPatienceSeconds > 0f ? newCustomerPatienceSeconds : -1f;
         customerMoveSpeedOverride = newCustomerMoveSpeed > 0f ? newCustomerMoveSpeed : -1f;
@@ -279,13 +281,21 @@ public class CustomerSpawner : MonoBehaviour
     /// </summary>
     public Customer GetWaitingCustomer()
     {
+        // Return the customer nearest the front of the queue (lowest QueueIndex),
+        // not merely the first in list order, so the front customer is served first.
+        Customer front = null;
+        int bestIndex = int.MaxValue;
         foreach (var customer in activeCustomers)
         {
             if (customer == null) continue;
-            if (customer.CurrentState == Customer.CustomerState.WaitingForDrink)
-                return customer;
+            if (customer.CurrentState != Customer.CustomerState.WaitingForDrink) continue;
+            if (customer.QueueIndex < bestIndex)
+            {
+                bestIndex = customer.QueueIndex;
+                front = customer;
+            }
         }
-        return null;
+        return front;
     }
     
     /// <summary>

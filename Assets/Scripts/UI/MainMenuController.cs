@@ -28,6 +28,10 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private Button quitButton;
 
     Button runtimeNewGameButton;
+    Button configuredNewGameButton;
+    Button pendingConfirmButton;
+    bool awaitingNewGameConfirm;
+    float confirmExpiresAt;
     
     void Start()
     {
@@ -59,6 +63,9 @@ public class MainMenuController : MonoBehaviour
             if (showingSubPanel)
                 ShowMainMenu();
         }
+
+        if (awaitingNewGameConfirm && Time.unscaledTime > confirmExpiresAt)
+            ResetNewGameConfirmation();
     }
 
     void ConfigurePlayFlow()
@@ -108,6 +115,7 @@ public class MainMenuController : MonoBehaviour
 
             if (newGameBtn != null)
             {
+                configuredNewGameButton = newGameBtn;
                 newGameBtn.onClick.RemoveAllListeners();
                 newGameBtn.onClick.AddListener(OnNewGameClicked);
                 SetButtonLabel(newGameBtn, "New Game");
@@ -128,6 +136,7 @@ public class MainMenuController : MonoBehaviour
                 newGameBtn.gameObject.SetActive(false);
             if (runtimeNewGameButton != null)
                 runtimeNewGameButton.gameObject.SetActive(false);
+            configuredNewGameButton = continueBtn;
         }
     }
     
@@ -149,6 +158,17 @@ public class MainMenuController : MonoBehaviour
 
     public void OnNewGameClicked()
     {
+        bool hasSave = SaveManager.Instance != null && SaveManager.Instance.HasSave();
+        if (hasSave && !awaitingNewGameConfirm)
+        {
+            awaitingNewGameConfirm = true;
+            confirmExpiresAt = Time.unscaledTime + 5f;
+            pendingConfirmButton = configuredNewGameButton;
+            SetButtonLabel(pendingConfirmButton, "Confirm New Game");
+            Debug.Log("[MainMenu] New Game requested with an existing save. Click again to confirm overwrite.");
+            return;
+        }
+
         Debug.Log("[MainMenu] Starting new game...");
         if (SaveManager.Instance != null)
             SaveManager.Instance.QueueNewGame(deleteExistingSave: true);
@@ -284,8 +304,21 @@ public class MainMenuController : MonoBehaviour
     
     void ShowMainMenu()
     {
+        ResetNewGameConfirmation();
         if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
         if (settingsPanel != null) settingsPanel.SetActive(false);
         if (creditsPanel != null) creditsPanel.SetActive(false);
+    }
+
+    void ResetNewGameConfirmation()
+    {
+        if (!awaitingNewGameConfirm)
+            return;
+
+        awaitingNewGameConfirm = false;
+        confirmExpiresAt = 0f;
+        if (pendingConfirmButton != null)
+            SetButtonLabel(pendingConfirmButton, "New Game");
+        pendingConfirmButton = null;
     }
 }

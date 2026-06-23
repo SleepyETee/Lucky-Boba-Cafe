@@ -36,6 +36,8 @@ public class QuestSystem : MonoBehaviour
     [SerializeField] private AudioClip questStartSound;
     [SerializeField] private AudioClip questCompleteSound;
     [SerializeField] private AudioClip objectiveCompleteSound;
+
+    private bool questLogPauseRequested;
     
     void Awake()
     {
@@ -45,7 +47,14 @@ public class QuestSystem : MonoBehaviour
             Destroy(gameObject);
     }
 
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    void OnDestroy()
+    {
+        if (questLogPauseRequested && GameManager.Instance != null)
+            GameManager.Instance.ReleasePause();
+        if (ReputationSystem.Instance != null)
+            ReputationSystem.Instance.OnStarChanged -= OnStarsChanged;
+        if (Instance == this) Instance = null;
+    }
     
     void Start()
     {
@@ -59,6 +68,35 @@ public class QuestSystem : MonoBehaviour
             questLogPanel.SetActive(false);
         if (notificationPanel != null)
             notificationPanel.SetActive(false);
+
+        if (ReputationSystem.Instance != null)
+            ReputationSystem.Instance.OnStarChanged += OnStarsChanged;
+
+        // Evaluate progress-based objectives (Serve / Reputation / Wait) on load
+        // so any progress made in the cafe carries into the village.
+        EvaluateProgressObjectives();
+    }
+
+    void Update()
+    {
+        bool logOpen = questLogPanel != null && questLogPanel.activeSelf;
+
+        if (logOpen && GameInput.PausePressed)
+        {
+            CloseQuestLog();
+            return;
+        }
+
+        if (GameInput.QuestLogPressed)
+        {
+            if (logOpen) CloseQuestLog();
+            else OpenQuestLog();
+        }
+    }
+
+    void OnStarsChanged(int oldStars, int newStars)
+    {
+        EvaluateProgressObjectives();
     }
     
     void InitializeQuests()
@@ -267,7 +305,16 @@ public class QuestSystem : MonoBehaviour
         
         activeQuests.Add(quest);
         quest.isActive = true;
-        
+
+        // Capture a baseline for "Serve" objectives so they count perfect serves
+        // made AFTER the quest is accepted (not historical ones).
+        int perfectServes = GameManager.Instance != null ? GameManager.Instance.LifetimePerfectServes : 0;
+        foreach (var obj in quest.objectives)
+        {
+            if (obj.type == ObjectiveType.Serve)
+                PlayerPrefs.SetInt(ServeBaselineKey(quest.id, obj.id), perfectServes);
+        }
+
         ShowNotification($"New Quest: {quest.title}");
         
         if (AudioManager.Instance != null)
@@ -306,6 +353,95 @@ public class QuestSystem : MonoBehaviour
         SaveQuestProgress();
     }
     
+    static string ServeBaselineKey(string questId, string objId) => $"QuestServeBase_{questId}_{objId}";
+
+    /// <summary>
+    /// Evaluates objective types that track world/player state rather than a
+    /// discrete interaction: Serve (perfect drinks since accepting), Reputation
+    /// (current star rating), and Wait (time passing between village visits).
+    /// Safe to call often — it only advances objectives, never reverses them.
+    /// </summary>
+    public void EvaluateProgressObjectives()
+    {
+        int perfectServes = GameManager.Instance != null ? GameManager.Instance.LifetimePerfectServes : 0;
+        int stars = ReputationSystem.Instance != null ? ReputationSystem.Instance.CurrentStars : 1;
+
+        bool anyChange = false;
+
+        // Iterate over a copy because completing a quest mutates activeQuests.
+        foreach (var quest in new List<Quest>(activeQuests))
+        {
+            bool questChanged = false;
+
+            foreach (var obj in quest.objectives)
+            {
+                if (obj.isCompleted) continue;
+
+                switch (obj.type)
+                {
+                    case ObjectiveType.Serve:
+                    {
+                        int baseline = PlayerPrefs.GetInt(ServeBaselineKey(quest.id, obj.id), perfectServes);
+                        int progress = Mathf.Clamp(perfectServes - baseline, 0, obj.requiredAmount);
+                        if (progress > obj.currentAmount)
+                        {
+                            obj.currentAmount = progress;
+                            questChanged = true;
+                        }
+                        if (obj.currentAmount >= obj.requiredAmount)
+                            questChanged |= MarkObjectiveComplete(obj);
+                        break;
+                    }
+                    case ObjectiveType.Reputation:
+                    {
+                        obj.currentAmount = Mathf.Min(stars, obj.requiredAmount);
+                        if (stars >= obj.requiredAmount)
+                            questChanged |= MarkObjectiveComplete(obj);
+                        break;
+                    }
+                    case ObjectiveType.Wait:
+                    {
+                        // No in-village clock; treat re-evaluating after accepting
+                        // the quest as "time has passed."
+                        questChanged |= MarkObjectiveComplete(obj);
+                        break;
+                    }
+                }
+            }
+
+            if (questChanged)
+            {
+                anyChange = true;
+                CheckQuestCompletion(quest);
+            }
+        }
+
+        if (anyChange)
+            SaveQuestProgress();
+    }
+
+    /// <summary>Marks an objective complete with feedback. Returns true if it changed.</summary>
+    bool MarkObjectiveComplete(QuestObjective objective)
+    {
+        if (objective.isCompleted) return false;
+        objective.currentAmount = objective.requiredAmount;
+        objective.isCompleted = true;
+        ShowNotification($"Objective Complete: {objective.description}");
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(objectiveCompleteSound);
+        Debug.Log($"[Quest] Objective complete: {objective.description}");
+        return true;
+    }
+
+    /// <summary>True if the given objective belongs to an active quest and is not yet complete.</summary>
+    public bool IsObjectiveActive(string questId, string objectiveId)
+    {
+        Quest quest = GetActiveQuest(questId);
+        if (quest == null) return false;
+        QuestObjective obj = quest.objectives.Find(o => o.id == objectiveId);
+        return obj != null && !obj.isCompleted;
+    }
+
     void CheckQuestCompletion(Quest quest)
     {
         foreach (var obj in quest.objectives)
@@ -364,8 +500,12 @@ public class QuestSystem : MonoBehaviour
         
         if (!string.IsNullOrEmpty(rewards.unlockRecipe))
         {
+            // Store as a comma-delimited list and match whole entries (avoids
+            // false positives like "Tea" matching "Green Tea").
             string recipes = PlayerPrefs.GetString("Recipes", "");
-            if (!recipes.Contains(rewards.unlockRecipe))
+            string[] owned = recipes.Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+            bool alreadyOwned = System.Array.IndexOf(owned, rewards.unlockRecipe) >= 0;
+            if (!alreadyOwned)
             {
                 recipes += rewards.unlockRecipe + ",";
                 PlayerPrefs.SetString("Recipes", recipes);
@@ -449,8 +589,18 @@ public class QuestSystem : MonoBehaviour
     
     public void OpenQuestLog()
     {
-        if (questLogPanel != null)
-            questLogPanel.SetActive(true);
+        if (questLogPanel == null)
+            return;
+
+        EvaluateProgressObjectives();
+
+        questLogPanel.SetActive(true);
+
+        if (!questLogPauseRequested && GameManager.Instance != null)
+        {
+            GameManager.Instance.RequestPause();
+            questLogPauseRequested = true;
+        }
         
         RefreshQuestList();
     }
@@ -459,6 +609,12 @@ public class QuestSystem : MonoBehaviour
     {
         if (questLogPanel != null)
             questLogPanel.SetActive(false);
+
+        if (questLogPauseRequested && GameManager.Instance != null)
+        {
+            GameManager.Instance.ReleasePause();
+            questLogPauseRequested = false;
+        }
     }
     
     void RefreshQuestList()
@@ -482,6 +638,24 @@ public class QuestSystem : MonoBehaviour
                     text.text = $"{quest.title} ({completed}/{quest.objectives.Count})";
                 }
                 
+                var button = entry.GetComponent<Button>();
+                if (button != null)
+                {
+                    Quest q = quest;
+                    button.onClick.AddListener(() => ShowQuestDetail(q));
+                }
+            }
+        }
+
+        foreach (var quest in completedQuests)
+        {
+            if (questEntryPrefab != null)
+            {
+                var entry = Instantiate(questEntryPrefab, questListContainer);
+                var text = entry.GetComponentInChildren<TextMeshProUGUI>();
+                if (text != null)
+                    text.text = $"{quest.title} (Complete)";
+
                 var button = entry.GetComponent<Button>();
                 if (button != null)
                 {

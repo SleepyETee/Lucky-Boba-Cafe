@@ -34,7 +34,8 @@ public class ShopManager : MonoBehaviour
  
     void Start()
     {
-        Time.timeScale = 1f;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
  
         if (startNextDayButton != null)
             startNextDayButton.onClick.AddListener(OnStartNextDay);
@@ -75,7 +76,7 @@ public class ShopManager : MonoBehaviour
     void UpdateDayLabel()
     {
         if (dayLabel == null || GameManager.Instance == null) return;
-        dayLabel.text = $"Preparing for Day {GameManager.Instance.CurrentDay}";
+        dayLabel.text = $"Prepare for Tomorrow - Day {GameManager.Instance.CurrentDay}";
     }
  
     void BuildUpgradeCards()
@@ -165,15 +166,19 @@ public class ShopManager : MonoBehaviour
     
     public void Pause()
     {
+        if (isPaused) return;
         isPaused = true;
-        Time.timeScale = 0f;
+        if (GameManager.Instance != null) GameManager.Instance.RequestPause();
+        else Time.timeScale = 0f;
         if (pausePanel) pausePanel.SetActive(true);
     }
     
     public void Resume()
     {
+        if (!isPaused) return;
         isPaused = false;
-        Time.timeScale = 1f;
+        if (GameManager.Instance != null) GameManager.Instance.ReleasePause();
+        else Time.timeScale = 1f;
         if (pausePanel) pausePanel.SetActive(false);
         if (settingsPanel) settingsPanel.SetActive(false);
     }
@@ -211,7 +216,9 @@ public class ShopManager : MonoBehaviour
     
     void OnStartNextDay()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (SaveManager.Instance != null && GameManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
  
@@ -223,7 +230,9 @@ public class ShopManager : MonoBehaviour
  
     void OnVisitVillage()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (SaveManager.Instance != null && GameManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
  
@@ -232,7 +241,9 @@ public class ShopManager : MonoBehaviour
     
     void ReturnToMainMenu()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (SaveManager.Instance != null && GameManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
         SceneManager.LoadScene(SceneNames.MainMenu);
@@ -240,6 +251,9 @@ public class ShopManager : MonoBehaviour
     
     void QuitGame()
     {
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (SaveManager.Instance != null && GameManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
         #if UNITY_EDITOR

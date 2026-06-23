@@ -63,10 +63,17 @@ public class DialogueSystem : MonoBehaviour
     
     void Update()
     {
-        // Skip to end of text on click
-        if (isTyping && skipOnClick && GameInput.ClickPressed)
+        bool advancePressed = GameInput.ConfirmPressed || GameInput.EnterPressed || (skipOnClick && GameInput.ClickPressed);
+        if (!advancePressed || waitingForChoice)
+            return;
+
+        if (isTyping)
         {
             FinishTyping();
+        }
+        else if (IsDialogueActive())
+        {
+            OnContinueClicked();
         }
     }
     
@@ -74,6 +81,13 @@ public class DialogueSystem : MonoBehaviour
     
     public void StartDialogue(Dialogue dialogue, System.Action onEnd = null)
     {
+        if (dialogue == null) return;
+
+        // Cleanly close any dialogue already in progress so its coroutine and
+        // callbacks don't leak into the new one.
+        if (IsDialogueActive() || currentDialogue != null)
+            EndDialogue();
+
         currentDialogue = dialogue;
         currentLineIndex = 0;
         onDialogueEnd = onEnd;
@@ -119,7 +133,13 @@ public class DialogueSystem : MonoBehaviour
             foreach (Transform child in choicesContainer)
                 Destroy(child.gameObject);
         }
-        
+
+        if (choiceButtonPrefab == null || choicesContainer == null)
+        {
+            Debug.LogWarning("[DialogueSystem] choiceButtonPrefab or choicesContainer not assigned — cannot show choices.");
+            return;
+        }
+
         // Create choice buttons
         for (int i = 0; i < choices.Length; i++)
         {

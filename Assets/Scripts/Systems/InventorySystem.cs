@@ -43,11 +43,49 @@ public class InventorySystem : MonoBehaviour
 
     void OnDestroy() { if (Instance == this) Instance = null; }
 
+    const string SaveKey = "Inventory";
+    const string LastRestockDayKey = "InventoryLastRestockDay";
+
     void Start()
     {
-        // On Day 1, give starting stock
-        if (GameManager.Instance != null && GameManager.Instance.CurrentDay <= 1)
+        // Restore persisted stock first so purchases carry across scenes/days.
+        if (PlayerPrefs.HasKey(SaveKey))
+        {
+            LoadStock();
+        }
+        else if (GameManager.Instance != null && GameManager.Instance.CurrentDay <= 1)
+        {
+            // First ever load on Day 1: seed the starting stock.
             ApplyStartingStock();
+        }
+    }
+
+    // ==================== PERSISTENCE ====================
+
+    void SaveStock()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var kvp in stock)
+        {
+            if (kvp.Value <= 0) continue;
+            sb.Append(kvp.Key).Append(':').Append(kvp.Value).Append(';');
+        }
+        PlayerPrefs.SetString(SaveKey, sb.ToString());
+        PlayerPrefs.Save();
+    }
+
+    void LoadStock()
+    {
+        stock.Clear();
+        string data = PlayerPrefs.GetString(SaveKey, "");
+        foreach (string entry in data.Split(';'))
+        {
+            if (string.IsNullOrEmpty(entry)) continue;
+            string[] parts = entry.Split(':');
+            if (parts.Length == 2 && int.TryParse(parts[1], out int count) && count > 0)
+                stock[parts[0]] = count;
+        }
+        OnInventoryChanged?.Invoke();
     }
 
     // ==================== STOCK MANAGEMENT ====================
@@ -58,6 +96,7 @@ public class InventorySystem : MonoBehaviour
         Register(item);
         stock[item.itemName] += quantity;
         OnInventoryChanged?.Invoke();
+        SaveStock();
     }
 
     public bool RemoveItem(ItemData item, int quantity)
@@ -66,6 +105,7 @@ public class InventorySystem : MonoBehaviour
         if (GetStock(item) < quantity) return false;
         stock[item.itemName] -= quantity;
         OnInventoryChanged?.Invoke();
+        SaveStock();
         return true;
     }
 
@@ -111,14 +151,32 @@ public class InventorySystem : MonoBehaviour
     /// </summary>
     public void ApplyMorningRestock()
     {
-        if (dailyRestock == null) return;
-        foreach (var entry in dailyRestock)
+        if (dailyRestock != null && dailyRestock.Length > 0)
         {
-            if (entry.item == null) continue;
-            AddItem(entry.item, entry.quantity);
+            foreach (var entry in dailyRestock)
+            {
+                if (entry.item == null) continue;
+                AddItem(entry.item, entry.quantity);
+            }
         }
+        else
+        {
+            ApplyDefaultDailyRestock();
+        }
+
         preppedToday.Clear();
         Debug.Log("[Inventory] Morning restock delivered.");
+    }
+
+    public void ApplyMorningRestockForDay(int day)
+    {
+        int safeDay = Mathf.Max(1, day);
+        if (PlayerPrefs.GetInt(LastRestockDayKey, 0) >= safeDay)
+            return;
+
+        ApplyMorningRestock();
+        PlayerPrefs.SetInt(LastRestockDayKey, safeDay);
+        PlayerPrefs.Save();
     }
 
     /// <summary>
@@ -152,13 +210,41 @@ public class InventorySystem : MonoBehaviour
 
     void ApplyStartingStock()
     {
-        if (startingStock == null) return;
-        foreach (var entry in startingStock)
+        if (startingStock != null && startingStock.Length > 0)
         {
-            if (entry.item == null) continue;
-            AddItem(entry.item, entry.quantity);
+            foreach (var entry in startingStock)
+            {
+                if (entry.item == null) continue;
+                AddItem(entry.item, entry.quantity);
+            }
         }
+        else
+        {
+            ApplyDefaultStartingStock();
+        }
+
         Debug.Log("[Inventory] Starting stock applied.");
+    }
+
+    void ApplyDefaultStartingStock()
+    {
+        AddItemByName("Green Tea", 12);
+        AddItemByName("Black Tea", 12);
+        AddItemByName("Regular Milk", 12);
+        AddItemByName("Tapioca", 8);
+        AddItemByName("Brown Sugar", 6);
+        AddItemByName("Taro Powder", 4);
+        AddItemByName("Matcha", 3);
+        AddItemByName("Local Honey", 2);
+        AddItemByName("Mountain Herbs", 2);
+    }
+
+    void ApplyDefaultDailyRestock()
+    {
+        AddItemByName("Green Tea", 6);
+        AddItemByName("Black Tea", 6);
+        AddItemByName("Regular Milk", 6);
+        AddItemByName("Tapioca", 4);
     }
 
     void Register(ItemData item)
@@ -181,6 +267,7 @@ public class InventorySystem : MonoBehaviour
             stock[itemName] = 0;
         stock[itemName] += quantity;
         OnInventoryChanged?.Invoke();
+        SaveStock();
     }
 
     public bool RemoveItemByName(string itemName, int quantity = 1)
@@ -189,6 +276,7 @@ public class InventorySystem : MonoBehaviour
         if (GetStockByName(itemName) < quantity) return false;
         stock[itemName] -= quantity;
         OnInventoryChanged?.Invoke();
+        SaveStock();
         return true;
     }
 
@@ -199,6 +287,17 @@ public class InventorySystem : MonoBehaviour
     {
         if (string.IsNullOrEmpty(itemName)) return 0;
         return stock.TryGetValue(itemName, out int val) ? val : 0;
+    }
+
+    public bool HasAnyStock()
+    {
+        foreach (int count in stock.Values)
+        {
+            if (count > 0)
+                return true;
+        }
+
+        return false;
     }
 
     public ItemData GetItemByName(string name)

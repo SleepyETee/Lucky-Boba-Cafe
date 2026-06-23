@@ -39,7 +39,10 @@ public class VillageNPC : MonoBehaviour, IInteractable
         if (interactPrompt != null)
             interactPrompt.SetActive(false);
         
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        // Find the player by component rather than the "Player" tag: the
+        // village scene has several objects sharing the "Player" tag, so a
+        // tag lookup can return the wrong object (e.g. an NPC).
+        PlayerController playerObj = FindAnyObjectByType<PlayerController>();
         if (playerObj != null) player = playerObj.transform;
         
         UpdateQuestIcons();
@@ -98,7 +101,7 @@ public class VillageNPC : MonoBehaviour, IInteractable
     {
         if (player == null || !player.gameObject.activeInHierarchy)
         {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            PlayerController playerObj = FindAnyObjectByType<PlayerController>();
             player = playerObj != null ? playerObj.transform : null;
         }
     }
@@ -138,8 +141,16 @@ public class VillageNPC : MonoBehaviour, IInteractable
 
         if (QuestSystem.Instance != null)
         {
+            // Update state-based objectives (Serve / Reputation / Wait) first so
+            // progress made in the cafe is reflected before this conversation.
+            QuestSystem.Instance.EvaluateProgressObjectives();
+
             // First: complete any active quest objectives involving this NPC
             completedSomething = TryCompleteTalkObjectives() | TryCompleteDeliverObjectives();
+
+            // If this NPC's quest is waiting on a dialogue choice, present it now.
+            if (TryShowChoiceObjective())
+                return;
 
             // Second: offer new quests if this NPC is a quest giver
             if (isQuestGiver)
@@ -237,6 +248,61 @@ public class VillageNPC : MonoBehaviour, IInteractable
         return completed;
     }
     
+    /// <summary>
+    /// If this NPC gives a quest with a ready "Choice" objective (all preceding
+    /// objectives complete), present a feedback choice. Completing it advances
+    /// the quest. Returns true if a choice dialogue was shown.
+    /// </summary>
+    bool TryShowChoiceObjective()
+    {
+        if (QuestSystem.Instance == null) return false;
+
+        foreach (var quest in QuestSystem.Instance.GetActiveQuests())
+        {
+            if (quest.giver != npcName) continue;
+
+            for (int i = 0; i < quest.objectives.Count; i++)
+            {
+                QuestObjective obj = quest.objectives[i];
+                if (obj.isCompleted || obj.type != ObjectiveType.Choice) continue;
+
+                // All earlier objectives must be done first.
+                bool earlierDone = true;
+                for (int j = 0; j < i; j++)
+                {
+                    if (!quest.objectives[j].isCompleted) { earlierDone = false; break; }
+                }
+                if (!earlierDone) continue;
+
+                string qId = quest.id;
+                string oId = obj.id;
+                Dialogue choiceDialogue = new Dialogue
+                {
+                    speakerName = npcName,
+                    portrait = portrait,
+                    lines = new List<DialogueLine>
+                    {
+                        new DialogueLine
+                        {
+                            text = obj.description,
+                            choices = new string[] { "It's wonderful!", "It could use some work." },
+                            onChoiceMade = (choice) =>
+                            {
+                                QuestSystem.Instance.CompleteObjective(qId, oId);
+                                UpdateQuestIcons();
+                            }
+                        }
+                    }
+                };
+
+                DialogueSystem.Instance.StartDialogue(choiceDialogue, () => UpdateQuestIcons());
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // ==================== DIALOGUE ====================
     
     void ShowGreeting()

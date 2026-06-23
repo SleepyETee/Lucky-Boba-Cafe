@@ -10,7 +10,6 @@ using UnityEngine.UI;
 using TMPro;
 using System;
 using System.Collections;
-using System.Collections.Generic;
 
 public class CraftingMinigame : MonoBehaviour
 {
@@ -52,7 +51,9 @@ public class CraftingMinigame : MonoBehaviour
     [Header("References")]
     [SerializeField] private CustomerSpawner customerSpawner;
 
-    private Dictionary<string, (float target, float max)> drinkRecipes;
+    [Header("Soft-lock Timeouts (auto-finish if player stalls)")]
+    [SerializeField] private float shakeTimeout = 8f;
+    [SerializeField] private float topTimeout = 8f;
 
     // Step state
     private CraftStep currentStep;
@@ -60,6 +61,9 @@ public class CraftingMinigame : MonoBehaviour
     private string currentDrinkName;
     private bool isActive;
     private bool stepComplete;
+
+    // The customer this drink is being made for (captured at StartMinigame).
+    private Customer targetCustomer;
 
     // Brew state (hold + release)
     private float currentTime;
@@ -87,15 +91,6 @@ public class CraftingMinigame : MonoBehaviour
 
     void Start()
     {
-        drinkRecipes = new Dictionary<string, (float target, float max)>
-        {
-            { "Classic Milk Tea", (2.5f, 4.0f) },
-            { "Taro Boba",       (3.0f, 4.5f) },
-            { "Brown Sugar",     (3.5f, 5.0f) },
-            { "Matcha Latte",    (2.0f, 3.5f) },
-            { "Green Tea",       (1.5f, 3.0f) },
-        };
-
         if (customerSpawner == null)
             customerSpawner = FindAnyObjectByType<CustomerSpawner>();
 
@@ -107,9 +102,15 @@ public class CraftingMinigame : MonoBehaviour
         if (toppingButton3 != null) toppingButton3.onClick.AddListener(() => OnToppingPicked(0.4f));
     }
 
+    // Elapsed time in the current interactive step (unscaled so the minigame
+    // keeps working consistently regardless of Time.timeScale).
+    private float stepElapsed;
+
     void Update()
     {
         if (!isActive || stepComplete) return;
+
+        stepElapsed += Time.unscaledDeltaTime;
 
         switch (currentStep)
         {
@@ -123,7 +124,14 @@ public class CraftingMinigame : MonoBehaviour
 
     // ==================== PUBLIC ====================
 
+    // Backward-compatible overload (no captured customer — falls back to the
+    // front waiting customer at serve time).
     public void StartMinigame(string drinkName = "", bool needsTopping = true)
+    {
+        StartMinigame(null, drinkName, needsTopping);
+    }
+
+    public void StartMinigame(Customer target, string drinkName = "", bool needsTopping = true)
     {
         if (isActive)
             return;
@@ -134,6 +142,12 @@ public class CraftingMinigame : MonoBehaviour
         orderNeedsTopping = needsTopping;
         isActive = true;
 
+        // Capture the customer being served and pause their patience so they
+        // can't leave angry mid-craft (which would misdeliver the drink).
+        targetCustomer = target;
+        if (targetCustomer != null)
+            targetCustomer.SetServiceInProgress(true);
+
         toleranceBonus = 0f;
         if (GameManager.Instance != null)
         {
@@ -141,11 +155,12 @@ public class CraftingMinigame : MonoBehaviour
             toleranceBonus = quickPaws * 0.1f;
         }
 
-        if (!string.IsNullOrEmpty(drinkName) && drinkRecipes.ContainsKey(drinkName))
+        if (RecipeCatalog.TryGetRecipe(drinkName, out RecipeCatalog.RecipeInfo recipe))
         {
-            var recipe = drinkRecipes[drinkName];
-            targetTime = recipe.target;
-            maxTime = recipe.max;
+            currentDrinkName = recipe.Name;
+            orderNeedsTopping = recipe.NeedsTopping;
+            targetTime = recipe.BrewTarget;
+            maxTime = recipe.BrewMax;
         }
         else
         {
@@ -167,6 +182,7 @@ public class CraftingMinigame : MonoBehaviour
     {
         currentStep = step;
         stepComplete = false;
+        stepElapsed = 0f;
 
         if (progressBar != null) progressBar.value = 0;
         if (resultText != null) resultText.text = "";
@@ -281,7 +297,7 @@ public class CraftingMinigame : MonoBehaviour
 
         if (isHolding && GameInput.ConfirmHeld)
         {
-            currentTime += Time.deltaTime;
+            currentTime += Time.unscaledDeltaTime;
             if (progressBar != null) progressBar.value = currentTime / maxTime;
             if (timerText != null) timerText.text = $"{currentTime:F1}s";
 
@@ -305,6 +321,7 @@ public class CraftingMinigame : MonoBehaviour
 
     void CompleteBrew()
     {
+        if (stepComplete) return;
         float diff = Mathf.Abs(currentTime - targetTime);
         float perfTol = tolerancePerfect + toleranceBonus;
         float goodTol = toleranceGood + toleranceBonus;
@@ -325,7 +342,7 @@ public class CraftingMinigame : MonoBehaviour
 
     void UpdateMix()
     {
-        mixTimer += Time.deltaTime;
+        mixTimer += Time.unscaledDeltaTime;
 
         if (GameInput.ConfirmPressed)
             mixTapCount++;
@@ -346,6 +363,7 @@ public class CraftingMinigame : MonoBehaviour
 
     void CompleteMix()
     {
+        if (stepComplete) return;
         if (mixTapCount >= mixTapsPerfect)
             FinishStep(1.0f, "PERFECT MIX!", perfectColor);
         else if (mixTapCount >= mixTapsGood)
@@ -360,7 +378,15 @@ public class CraftingMinigame : MonoBehaviour
 
     void UpdateShake()
     {
-        shakeTimer += Time.deltaTime * shakeOscillateSpeed;
+        // Auto-finish with a low score if the player never presses (prevents soft-lock).
+        if (shakeTimeout > 0f && stepElapsed >= shakeTimeout && !shakePressed)
+        {
+            shakePressed = true;
+            FinishStep(0.3f, "Too slow...", badColor);
+            return;
+        }
+
+        shakeTimer += Time.unscaledDeltaTime * shakeOscillateSpeed;
         float value = (Mathf.Sin(shakeTimer) + 1f) / 2f; // 0..1 oscillation
 
         if (progressBar != null) progressBar.value = value;
@@ -399,6 +425,13 @@ public class CraftingMinigame : MonoBehaviour
 
     void UpdateTop()
     {
+        // Auto-pick a plain topping if the player never chooses (prevents soft-lock).
+        if (topTimeout > 0f && stepElapsed >= topTimeout && !toppingChosen)
+        {
+            OnToppingPicked(0.4f);
+            return;
+        }
+
         if (GameInput.Option1Pressed)
             OnToppingPicked(1.0f);
         else if (GameInput.Option2Pressed)
@@ -465,30 +498,34 @@ public class CraftingMinigame : MonoBehaviour
         PlayerController player = FindAnyObjectByType<PlayerController>();
         if (player != null) player.Unfreeze();
 
-        if (customerSpawner == null)
+        // Resume the captured customer's patience before serving (no-op if already served).
+        if (targetCustomer != null)
+            targetCustomer.SetServiceInProgress(false);
+
+        // Prefer the customer captured at the start of the minigame so the drink
+        // always goes to the right order, even if the queue changed mid-craft.
+        Customer customer = targetCustomer;
+        bool targetValid = customer != null && customer.CurrentState == Customer.CustomerState.WaitingForDrink;
+
+        if (!targetValid)
         {
-            customerSpawner = FindAnyObjectByType<CustomerSpawner>();
-            Debug.LogWarning($"[CraftingMinigame] customerSpawner was null, re-searched: {(customerSpawner != null ? "found" : "STILL NULL")}");
+            if (customerSpawner == null)
+                customerSpawner = FindAnyObjectByType<CustomerSpawner>();
+
+            customer = customerSpawner != null ? customerSpawner.GetWaitingCustomer() : null;
         }
 
-        if (customerSpawner != null)
+        if (customer != null)
         {
-            Customer customer = customerSpawner.GetWaitingCustomer();
-            if (customer != null)
-            {
-                Debug.Log($"[CraftingMinigame] Serving drink to customer (quality={quality:F2}). Order: {customer.CurrentOrder}");
-                customer.ServeDrink(quality);
-            }
-            else
-            {
-                Debug.LogWarning("[CraftingMinigame] No customer in WaitingForDrink state! Drink was wasted.");
-            }
+            Debug.Log($"[CraftingMinigame] Serving drink (quality={quality:F2}). Order: {customer.CurrentOrder}");
+            customer.ServeDrink(quality);
         }
         else
         {
-            Debug.LogError("[CraftingMinigame] CustomerSpawner is null — cannot serve drink!");
+            Debug.LogWarning("[CraftingMinigame] No customer to serve — drink was wasted.");
         }
 
+        targetCustomer = null;
         OnCraftingComplete?.Invoke(quality);
     }
 

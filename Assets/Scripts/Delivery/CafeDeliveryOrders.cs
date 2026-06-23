@@ -18,6 +18,7 @@ public class CafeDeliveryOrders : MonoBehaviour
     public int pendingDeliveries = 0;
     public int maxDeliveries = 5;
     public float orderChance = 0.3f; // 30% chance per period
+    [SerializeField] private int requiredStarsForDeliveries = 2;
     
     [Header("UI - Order Notification")]
     public GameObject orderNotification;
@@ -90,6 +91,12 @@ public class CafeDeliveryOrders : MonoBehaviour
     
     void OnPeriodChanged(DaySummaryUI.DayPeriod period)
     {
+        if (!CanReceiveDeliveryOrders())
+        {
+            UpdateUI();
+            return;
+        }
+
         // Random chance for delivery order each period
         if (period != DaySummaryUI.DayPeriod.Closing)
         {
@@ -102,10 +109,11 @@ public class CafeDeliveryOrders : MonoBehaviour
     
     void OnDayEnded(bool success)
     {
-        if (pendingDeliveries > 0)
-        {
-            ShowDeliveryChoice();
-        }
+        // DaySummaryUI is the single between-day decision point now. Keep this
+        // script focused on collecting orders during the day so players don't
+        // see two competing delivery prompts after closing.
+        if (deliveryChoicePanel)
+            deliveryChoicePanel.SetActive(false);
     }
     
     private Coroutine hideNotifCoroutine;
@@ -142,7 +150,18 @@ public class CafeDeliveryOrders : MonoBehaviour
     void UpdateUI()
     {
         if (orderCountText)
-            orderCountText.text = $"Orders: {pendingDeliveries}";
+        {
+            if (!CanReceiveDeliveryOrders())
+                orderCountText.text = $"Deliveries unlock at {requiredStarsForDeliveries} stars";
+            else
+                orderCountText.text = $"Orders: {pendingDeliveries}";
+        }
+    }
+
+    bool CanReceiveDeliveryOrders()
+    {
+        return ReputationSystem.Instance == null ||
+            ReputationSystem.Instance.CurrentStars >= requiredStarsForDeliveries;
     }
     
     void ShowDeliveryChoice()

@@ -143,10 +143,10 @@ public class Customer : MonoBehaviour
 
         PatienceRemaining = maxPatience;
         
-        // Generate random order
-        string[] orders = { "Classic Milk Tea", "Taro Boba", "Brown Sugar", "Matcha Latte", "Green Tea" };
-        CurrentOrder = orders[UnityEngine.Random.Range(0, orders.Length)];
-        CurrentOrderNeedsTopping = DetermineIfOrderNeedsTopping(CurrentOrder);
+        // Generate an order from the currently unlocked menu so quests and
+        // reputation visibly feed back into the cafe day.
+        CurrentOrder = RecipeCatalog.GetRandomAvailableOrder();
+        CurrentOrderNeedsTopping = RecipeCatalog.NeedsTopping(CurrentOrder);
         
         // Default queue position is the counter (with fallback if not assigned).
         if (counter != null)
@@ -414,9 +414,24 @@ public class Customer : MonoBehaviour
     }
     
     // ==================== PATIENCE ====================
-    
+
+    // When true, the player is actively crafting this customer's drink, so
+    // patience should not drain (prevents the served customer from leaving
+    // angry mid-minigame, which previously caused wrong-customer serves).
+    private bool serviceInProgress;
+
+    /// <summary>
+    /// Pause/resume this customer's patience drain while their drink is being crafted.
+    /// </summary>
+    public void SetServiceInProgress(bool inProgress)
+    {
+        serviceInProgress = inProgress;
+    }
+
     void UpdatePatience()
     {
+        if (serviceInProgress) return;
+
         PatienceRemaining -= Time.deltaTime;
         
         if (PatienceRemaining <= 0)
@@ -463,7 +478,7 @@ public class Customer : MonoBehaviour
         ChangeState(CustomerState.Receiving);
         
         float satisfaction = quality * (0.5f + PatiencePercent * 0.5f);
-        int baseTip = 15;
+        int baseTip = RecipeCatalog.GetBaseTip(CurrentOrder);
 
         float upgradeBonus = 1f;
         if (GameManager.Instance != null)
@@ -472,7 +487,7 @@ public class Customer : MonoBehaviour
             upgradeBonus += tipJarLevel * 0.15f;
         }
 
-        int tip = Mathf.Max(1, Mathf.RoundToInt(baseTip * satisfaction * tipMultiplier * upgradeBonus));
+        int tip = Mathf.Max(1, Mathf.RoundToInt(baseTip * satisfaction * tipMultiplier * upgradeBonus * CafeProgression.TipMultiplier));
 
         Debug.Log($"[Customer] ServeDrink: quality={quality:F2}, satisfaction={satisfaction:F2}, tip=${tip}, GM exists={GameManager.Instance != null}");
         
@@ -481,6 +496,8 @@ public class Customer : MonoBehaviour
             GameManager.Instance.AddMoney(tip, isTip: true);
             GameManager.Instance.RecordCustomerServed();
             GameManager.Instance.RecordSatisfaction(satisfaction);
+            if (satisfaction >= 0.8f)
+                GameManager.Instance.RecordPerfectServe();
             
             if (AudioManager.Instance != null)
                 AudioManager.Instance.PlayCoin();
@@ -563,18 +580,6 @@ public class Customer : MonoBehaviour
         }
     }
 
-    bool DetermineIfOrderNeedsTopping(string drinkName)
-    {
-        switch (drinkName)
-        {
-            case "Taro Boba":
-            case "Brown Sugar":
-                return true;
-            default:
-                return false;
-        }
-    }
-    
     void ShowAngryIndicator(bool show)
     {
         if (angryIndicator != null) angryIndicator.SetActive(show);

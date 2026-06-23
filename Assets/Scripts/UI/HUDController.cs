@@ -6,6 +6,7 @@
 // ============================================================
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 public class HUDController : MonoBehaviour
 {
@@ -41,6 +42,7 @@ public class HUDController : MonoBehaviour
 
     void Start()
     {
+        EnsurePromptUI();
         SubscribeToManagers();
         RefreshAll();
     }
@@ -164,6 +166,7 @@ public class HUDController : MonoBehaviour
 
     public void ShowPrompt(string message)
     {
+        EnsurePromptUI();
         if (promptPanel != null) promptPanel.SetActive(true);
         if (promptText != null) promptText.text = message;
     }
@@ -171,6 +174,40 @@ public class HUDController : MonoBehaviour
     public void HidePrompt()
     {
         if (promptPanel != null) promptPanel.SetActive(false);
+    }
+
+    void EnsurePromptUI()
+    {
+        if (promptPanel != null && promptText != null)
+            return;
+
+        GameObject panel = new GameObject("RuntimePromptPanel");
+        panel.transform.SetParent(transform, false);
+        Image image = panel.AddComponent<Image>();
+        image.color = new Color(0f, 0f, 0f, 0.65f);
+
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.35f, 0.08f);
+        panelRect.anchorMax = new Vector2(0.65f, 0.16f);
+        panelRect.offsetMin = Vector2.zero;
+        panelRect.offsetMax = Vector2.zero;
+
+        GameObject textObj = new GameObject("RuntimePromptText");
+        textObj.transform.SetParent(panel.transform, false);
+        promptText = textObj.AddComponent<TextMeshProUGUI>();
+        promptText.alignment = TextAlignmentOptions.Center;
+        promptText.fontSize = 24f;
+        promptText.color = Color.white;
+        promptText.textWrappingMode = TextWrappingModes.Normal;
+
+        RectTransform textRect = textObj.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(12f, 6f);
+        textRect.offsetMax = new Vector2(-12f, -6f);
+
+        promptPanel = panel;
+        promptPanel.SetActive(false);
     }
 
     // ==================== REPUTATION HUD ====================

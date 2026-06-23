@@ -39,8 +39,12 @@ public class SettingsManager : MonoBehaviour
             sfxVolumeSlider.onValueChanged.AddListener(SetSFXVolume);
         if (fullscreenToggle != null)
             fullscreenToggle.onValueChanged.AddListener(SetFullscreen);
+        if (resolutionDropdown != null)
+            resolutionDropdown.onValueChanged.AddListener(_ => ApplySettings());
         if (applyButton != null)
             applyButton.onClick.AddListener(ApplySettings);
+        if (backButton != null)
+            backButton.onClick.AddListener(ApplySettings);
     }
     
     // ==================== INITIALIZATION ====================
@@ -48,27 +52,39 @@ public class SettingsManager : MonoBehaviour
     void InitializeResolutions()
     {
         if (resolutionDropdown == null) return;
-        
-        resolutions = Screen.resolutions;
+
+        // Deduplicate by width x height — Screen.resolutions can list the same
+        // size multiple times for different refresh rates, which produced
+        // duplicate dropdown entries and a mismatched apply index.
+        List<Resolution> unique = new List<Resolution>();
+        HashSet<long> seen = new HashSet<long>();
+        foreach (Resolution r in Screen.resolutions)
+        {
+            long key = ((long)r.width << 32) | (uint)r.height;
+            if (seen.Add(key))
+                unique.Add(r);
+        }
+        resolutions = unique.ToArray();
+
         resolutionDropdown.ClearOptions();
-        
+
         List<string> options = new List<string>();
         int currentIndex = 0;
-        
+
         for (int i = 0; i < resolutions.Length; i++)
         {
-            string option = $"{resolutions[i].width} x {resolutions[i].height}";
-            options.Add(option);
-            
+            options.Add($"{resolutions[i].width} x {resolutions[i].height}");
+
             if (resolutions[i].width == Screen.currentResolution.width &&
                 resolutions[i].height == Screen.currentResolution.height)
             {
                 currentIndex = i;
             }
         }
-        
+
         resolutionDropdown.AddOptions(options);
-        resolutionDropdown.value = PlayerPrefs.GetInt("ResolutionIndex", currentIndex);
+        int savedIndex = PlayerPrefs.GetInt("ResolutionIndex", currentIndex);
+        resolutionDropdown.value = Mathf.Clamp(savedIndex, 0, Mathf.Max(0, resolutions.Length - 1));
         resolutionDropdown.RefreshShownValue();
     }
     

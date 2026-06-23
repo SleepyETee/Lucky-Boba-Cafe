@@ -28,9 +28,14 @@ public class DeliveryObstacle : MonoBehaviour
     public GameObject hitEffect;
     public AudioClip hitSound;
     
+    static bool IsScooter(GameObject go)
+    {
+        return go.GetComponent<DeliveryScooter>() != null || go.CompareTag("Player");
+    }
+
     void OnCollisionEnter2D(Collision2D col)
     {
-        if (!col.gameObject.CompareTag("Player")) return;
+        if (!IsScooter(col.gameObject)) return;
         
         if (hitEffect)
         {
@@ -54,10 +59,20 @@ public class DeliveryObstacle : MonoBehaviour
     void OnTriggerStay2D(Collider2D other)
     {
         if (!slowsPlayer) return;
-        if (!other.CompareTag("Player")) return;
-        
-        Rigidbody2D rb = other.GetComponent<Rigidbody2D>();
-        if (rb != null)
-            rb.linearVelocity *= slowAmount;
+        if (!IsScooter(other.gameObject)) return;
+
+        Rigidbody2D rb = other.attachedRigidbody;
+        if (rb == null) return;
+
+        // Cap speed to a fixed fraction of the scooter's top speed while inside
+        // the trigger. (The old code multiplied velocity every physics frame,
+        // which compounded down to ~0 and stuck the player.)
+        DeliveryScooter scooter = other.GetComponent<DeliveryScooter>()
+            ?? other.GetComponentInParent<DeliveryScooter>();
+        float baseSpeed = scooter != null ? scooter.maxSpeed : 12f;
+        float speedCap = baseSpeed * Mathf.Clamp01(slowAmount);
+
+        if (rb.linearVelocity.magnitude > speedCap)
+            rb.linearVelocity = rb.linearVelocity.normalized * speedCap;
     }
 }

@@ -23,6 +23,9 @@ public class PlayerController : MonoBehaviour
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
         if (animator == null) animator = GetComponent<Animator>();
+
+        if (rb == null)
+            Debug.LogError("[PlayerController] No Rigidbody2D found — movement will be disabled.", this);
     }
 
     // Movement state
@@ -56,6 +59,8 @@ public class PlayerController : MonoBehaviour
     
     void FixedUpdate()
     {
+        if (rb == null) return;
+
         if (!canMove || (GameManager.Instance != null && GameManager.Instance.IsPaused))
         {
             rb.linearVelocity = Vector2.zero;
@@ -192,7 +197,7 @@ public class PlayerController : MonoBehaviour
     public void SetCanMove(bool value)
     {
         canMove = value;
-        if (!canMove) rb.linearVelocity = Vector2.zero;
+        if (!canMove && rb != null) rb.linearVelocity = Vector2.zero;
     }
     
     public void Freeze() => SetCanMove(false);

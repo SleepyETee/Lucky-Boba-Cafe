@@ -30,6 +30,8 @@ public class GameManager : MonoBehaviour
     public int LifetimeCustomersServed { get; private set; }
     public int LifetimeTips { get; private set; }
     public int HighScore { get; private set; }
+    /// <summary>Cumulative count of high-satisfaction ("perfect") serves. Used by quest "Serve" objectives.</summary>
+    public int LifetimePerfectServes { get; private set; }
     
     // Satisfaction tracking
     public float TotalSatisfaction { get; private set; }
@@ -131,6 +133,12 @@ public class GameManager : MonoBehaviour
         SatisfactionCount++;
         if (satisfaction < 0.01f) DissatisfiedCount++;
     }
+
+    /// <summary>Record a high-quality ("perfect") serve for quest progression.</summary>
+    public void RecordPerfectServe()
+    {
+        LifetimePerfectServes++;
+    }
     
     // ==================== DAY MANAGEMENT ====================
     
@@ -205,6 +213,7 @@ public class GameManager : MonoBehaviour
         CurrentDay = 1;
         LifetimeCustomersServed = 0;
         LifetimeTips = 0;
+        LifetimePerfectServes = 0;
         HighScore = PawCoins;
         upgradeLevels = new int[availableUpgrades != null ? availableUpgrades.Length : 0];
         ResetDayStats();
@@ -223,6 +232,7 @@ public class GameManager : MonoBehaviour
         CurrentDay = Mathf.Max(1, data.currentDay);
         LifetimeCustomersServed = Mathf.Max(0, data.lifetimeCustomersServed);
         LifetimeTips = Mathf.Max(0, data.lifetimeTips);
+        LifetimePerfectServes = Mathf.Max(0, data.lifetimePerfectServes);
         HighScore = Mathf.Max(PawCoins, data.highScore);
 
         int count = availableUpgrades != null ? availableUpgrades.Length : 0;
@@ -259,6 +269,7 @@ public class GameManager : MonoBehaviour
         data.currentDay = CurrentDay;
         data.lifetimeCustomersServed = LifetimeCustomersServed;
         data.lifetimeTips = LifetimeTips;
+        data.lifetimePerfectServes = LifetimePerfectServes;
         data.highScore = HighScore;
         data.upgradeLevels = (int[])upgradeLevels.Clone();
         data.masterVolume = PlayerPrefs.GetFloat("MasterVolume", AudioListener.volume);

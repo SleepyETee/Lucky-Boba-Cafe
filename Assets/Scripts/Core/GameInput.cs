@@ -51,6 +51,7 @@ public static class GameInput
     public static bool ConfirmReleased  => KB != null && KB.spaceKey.wasReleasedThisFrame;
     public static bool PausePressed     => KB != null && KB.escapeKey.wasPressedThisFrame;
     public static bool EnterPressed     => KB != null && KB.enterKey.wasPressedThisFrame;
+    public static bool QuestLogPressed  => KB != null && KB.jKey.wasPressedThisFrame;
     public static bool ClickPressed     => MS != null && MS.leftButton.wasPressedThisFrame;
 
     // ==================== NUMBER KEYS (crafting options) ====================

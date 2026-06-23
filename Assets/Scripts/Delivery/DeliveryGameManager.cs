@@ -91,7 +91,12 @@ public class DeliveryGameManager : MonoBehaviour
             Destroy(gameObject);
     }
 
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    void OnDestroy()
+    {
+        if (isPaused && GameManager.Instance != null)
+            GameManager.Instance.ReleasePause();
+        if (Instance == this) Instance = null;
+    }
     
     void Start()
     {
@@ -147,6 +152,8 @@ public class DeliveryGameManager : MonoBehaviour
         if (settingsButton) settingsButton.onClick.AddListener(OpenSettings);
         if (quitToMenuButton) quitToMenuButton.onClick.AddListener(ReturnToCafe);
         if (quitGameButton) quitGameButton.onClick.AddListener(QuitGame);
+        SetButtonLabel(continueButton, "Prepare Tomorrow");
+        SetButtonLabel(quitToMenuButton, "Prepare Tomorrow");
         
         // Hide panels
         if (resultsPanel) resultsPanel.SetActive(false);
@@ -164,6 +171,9 @@ public class DeliveryGameManager : MonoBehaviour
             allDeliveryPoints.AddRange(points);
         }
         
+        // Drop any null entries (e.g. empty Inspector slots) to avoid NREs below.
+        allDeliveryPoints.RemoveAll(p => p == null);
+
         // Disable all initially
         foreach (var point in allDeliveryPoints)
             point.SetActive(false);
@@ -182,12 +192,13 @@ public class DeliveryGameManager : MonoBehaviour
         totalDeliveries = Mathf.Clamp(totalDeliveries, 1, 5);
         
         if (startInfoText)
-            startInfoText.text = $"{totalDeliveries} Orders to Deliver!\n\n" +
+            startInfoText.text = $"After-hours deliveries: {totalDeliveries} orders\n\n" +
                                  $"Time Limit: {startingTime}s\n" +
-                                 $"Earn tips for fast delivery!\n\n" +
+                                 $"Fast deliveries earn extra PawCoins for tomorrow.\n\n" +
                                  $"Controls:\n" +
                                  $"WASD - Drive\n" +
-                                 $"SPACE - Boost";
+                                 $"SPACE - Boost\n" +
+                                 $"ESC - Pause";
     }
     
     public void StartGame()
@@ -258,15 +269,16 @@ public class DeliveryGameManager : MonoBehaviour
         if (resultsPanel) resultsPanel.SetActive(true);
         
         if (resultsTitleText)
-            resultsTitleText.text = success ? "All Delivered!" : "Time is Up!";
+            resultsTitleText.text = success ? "All Deliveries Complete!" : "Delivery Run Ended";
         
         if (resultsStatsText)
         {
-            string stats = $"Deliveries: {successfulDeliveries}/{totalDeliveries}\n\n";
+            string stats = $"Orders Fulfilled: {successfulDeliveries}/{totalDeliveries}\n\n";
             stats += $"Base Tips: ${totalTips - bonus}\n";
             if (bonus > 0)
                 stats += $"Completion Bonus: +${bonus}\n";
-            stats += $"\nTOTAL: ${totalTips}";
+            stats += $"\nPawCoins for Tomorrow: ${totalTips}\n";
+            stats += "Next stop: prepare at the shop.";
             resultsStatsText.text = stats;
         }
         
@@ -279,14 +291,16 @@ public class DeliveryGameManager : MonoBehaviour
         if (resultsPanel) resultsPanel.SetActive(false);
         
         foreach (var point in allDeliveryPoints)
-            point.SetActive(false);
+            if (point != null) point.SetActive(false);
         
         StartGame();
     }
     
     public void ReturnToCafe()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         PlayerPrefs.SetInt("PendingDeliveries", 0);
         if (GameManager.Instance != null)
             GameManager.Instance.ResetDayStats();
@@ -461,16 +475,20 @@ public class DeliveryGameManager : MonoBehaviour
     
     public void PauseGame()
     {
+        if (isPaused) return;
         isPaused = true;
-        Time.timeScale = 0f;
+        if (GameManager.Instance != null) GameManager.Instance.RequestPause();
+        else Time.timeScale = 0f;
         if (pausePanel) pausePanel.SetActive(true);
         if (playerScooter) playerScooter.EnableControls(false);
     }
     
     public void ResumeGame()
     {
+        if (!isPaused) return;
         isPaused = false;
-        Time.timeScale = 1f;
+        if (GameManager.Instance != null) GameManager.Instance.ReleasePause();
+        else Time.timeScale = 1f;
         if (pausePanel) pausePanel.SetActive(false);
         if (settingsPanel) settingsPanel.SetActive(false);
         if (playerScooter) playerScooter.EnableControls(true);
@@ -507,7 +525,9 @@ public class DeliveryGameManager : MonoBehaviour
     
     public void QuitGame()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (GameManager.Instance != null && SaveManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
         #if UNITY_EDITOR
@@ -515,5 +535,12 @@ public class DeliveryGameManager : MonoBehaviour
         #else
         Application.Quit();
         #endif
+    }
+
+    static void SetButtonLabel(Button button, string label)
+    {
+        if (button == null || string.IsNullOrEmpty(label)) return;
+        TextMeshProUGUI text = button.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (text != null) text.text = label;
     }
 }

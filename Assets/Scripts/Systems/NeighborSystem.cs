@@ -45,10 +45,12 @@ public class NeighborSystem : MonoBehaviour
     void InitNeighbors()
     {
         neighbors.Clear();
+        // favoriteDrink values must match purchasable ShopSystem item names so
+        // GiveTea() can find and consume the ingredient from inventory.
         neighbors.Add(new Neighbor { name = "Granny Whiskers", favoriteDrink = "Green Tea", dialogues = new[] { "Hello dear!", "Try adding honey~" } });
-        neighbors.Add(new Neighbor { name = "Chef Mittens", favoriteDrink = "Taro Milk Tea", dialogues = new[] { "Fresh ingredients!", "Experiment more!" } });
-        neighbors.Add(new Neighbor { name = "Luna", favoriteDrink = "Matcha Latte", dialogues = new[] { "The moon is lovely...", "Matcha calms the spirit." } });
-        neighbors.Add(new Neighbor { name = "Boba Jr.", favoriteDrink = "Brown Sugar Boba", dialogues = new[] { "More sugar!", "Can I help at your cafe?" } });
+        neighbors.Add(new Neighbor { name = "Chef Mittens", favoriteDrink = "Taro Powder", dialogues = new[] { "Fresh ingredients!", "Experiment more!" } });
+        neighbors.Add(new Neighbor { name = "Luna", favoriteDrink = "Matcha", dialogues = new[] { "The moon is lovely...", "Matcha calms the spirit." } });
+        neighbors.Add(new Neighbor { name = "Boba Jr.", favoriteDrink = "Brown Sugar", dialogues = new[] { "More sugar!", "Can I help at your cafe?" } });
     }
     
     public void VisitNeighbor(int index)
@@ -83,7 +85,8 @@ public class NeighborSystem : MonoBehaviour
     {
         if (current == null) return;
         current.friendship = Mathf.Min(current.friendship + 5, 100);
-        if (dialogueText && current.dialogues.Length > 0) dialogueText.text = current.dialogues[Random.Range(0, current.dialogues.Length)];
+        if (dialogueText && current.dialogues != null && current.dialogues.Length > 0)
+            dialogueText.text = current.dialogues[Random.Range(0, current.dialogues.Length)];
         UpdateUI();
         SaveFriendships();
     }

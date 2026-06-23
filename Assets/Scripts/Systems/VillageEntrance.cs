@@ -48,11 +48,11 @@ public class VillageEntrance : MonoBehaviour
     
     void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Player")) { inRange = true; if (prompt) prompt.SetActive(true); }
+        if (other.GetComponentInParent<PlayerController>() != null) { inRange = true; if (prompt) prompt.SetActive(true); }
     }
     
     void OnTriggerExit2D(Collider2D other)
     {
-        if (other.CompareTag("Player")) { inRange = false; if (prompt) prompt.SetActive(false); }
+        if (other.GetComponentInParent<PlayerController>() != null) { inRange = false; if (prompt) prompt.SetActive(false); }
     }
 }

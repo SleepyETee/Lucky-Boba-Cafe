@@ -86,17 +86,25 @@ public class CraftingStation : MonoBehaviour, IInteractable
             return;
         }
         
-        // Get the current order name to pass to the minigame
+        // Capture the specific customer being served now, so the finished drink
+        // is delivered to THEM even if the queue changes during the minigame.
         string drinkName = "";
         bool needsTopping = true;
+        Customer targetCustomer = null;
         if (customerSpawner != null)
         {
-            Customer customer = customerSpawner.GetWaitingCustomer();
-            if (customer != null)
+            targetCustomer = customerSpawner.GetWaitingCustomer();
+            if (targetCustomer != null)
             {
-                drinkName = customer.CurrentOrder;
-                needsTopping = customer.CurrentOrderNeedsTopping;
+                drinkName = targetCustomer.CurrentOrder;
+                needsTopping = targetCustomer.CurrentOrderNeedsTopping;
             }
+        }
+
+        if (!RecipeCatalog.HasEnoughIngredients(drinkName, InventorySystem.Instance, out string missingItem))
+        {
+            ShowTemporaryPrompt($"Need {missingItem}!");
+            return;
         }
         
         // Start minigame
@@ -105,7 +113,8 @@ public class CraftingStation : MonoBehaviour, IInteractable
             craftingMinigame.OnCraftingComplete -= OnMinigameFinished;
             craftingMinigame.OnCraftingComplete += OnMinigameFinished;
 
-            craftingMinigame.StartMinigame(drinkName, needsTopping);
+            RecipeCatalog.ConsumeIngredients(drinkName, InventorySystem.Instance);
+            craftingMinigame.StartMinigame(targetCustomer, drinkName, needsTopping);
             
             if (promptText != null)
                 promptText.gameObject.SetActive(false);
@@ -141,6 +150,17 @@ public class CraftingStation : MonoBehaviour, IInteractable
             promptText.text = "Press E";
             promptText.color = Color.white;
         }
+    }
+
+    void ShowTemporaryPrompt(string message)
+    {
+        if (promptText == null) return;
+
+        promptText.text = message;
+        promptText.color = Color.red;
+        promptText.gameObject.SetActive(true);
+        if (resetCoroutine != null) StopCoroutine(resetCoroutine);
+        resetCoroutine = StartCoroutine(DelayedResetPrompt(1.25f));
     }
     
     public void OnPlayerEnterRange()

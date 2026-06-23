@@ -196,11 +196,15 @@ public class DeliveryScooter : MonoBehaviour
     void OnCollisionEnter2D(Collision2D col)
     {
         if (isInvulnerable) return;
-        
-        if (col.gameObject.CompareTag("Obstacle") || col.gameObject.CompareTag("TrafficCar"))
-        {
+
+        // Detect by component first (robust against untagged scene objects), then tags.
+        bool isObstacle = col.gameObject.GetComponent<DeliveryObstacle>() != null
+            || col.gameObject.GetComponent<TrafficCar>() != null
+            || col.gameObject.CompareTag("Obstacle")
+            || col.gameObject.CompareTag("TrafficCar");
+
+        if (isObstacle)
             Crash();
-        }
     }
     
     void OnTriggerEnter2D(Collider2D other)

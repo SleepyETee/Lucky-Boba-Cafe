@@ -10,6 +10,7 @@ public class GameData
     public int currentDay = 1;
     public int lifetimeCustomersServed;
     public int lifetimeTips;
+    public int lifetimePerfectServes;
     public int highScore;
 
     // Reputation
@@ -34,6 +35,7 @@ public class GameData
             currentDay = 1,
             lifetimeCustomersServed = 0,
             lifetimeTips = 0,
+            lifetimePerfectServes = 0,
             highScore = 0,
             reputationPoints = 0f,
             upgradeLevels = new int[0],

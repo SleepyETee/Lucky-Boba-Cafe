@@ -36,6 +36,7 @@ public class VillageManager : MonoBehaviour
             Instantiate(playerPrefab, spawnPoint.position, Quaternion.identity);
         
         if (returnHomeButton) returnHomeButton.onClick.AddListener(ReturnHome);
+        SetButtonLabel(returnHomeButton, "Prepare Tomorrow");
         if (resumeButton) resumeButton.onClick.AddListener(Resume);
         if (settingsButton) settingsButton.onClick.AddListener(OpenSettings);
         if (mainMenuButton) mainMenuButton.onClick.AddListener(ReturnToMainMenu);
@@ -74,13 +75,20 @@ public class VillageManager : MonoBehaviour
     void UpdateUI()
     {
         if (moneyText && GameManager.Instance != null)
-            moneyText.text = "$" + GameManager.Instance.PawCoins;
+            moneyText.text = "PawCoins: $" + GameManager.Instance.PawCoins;
     }
     
     void UpdateMoney(int amount)
     {
         if (moneyText != null)
-            moneyText.text = "$" + amount;
+            moneyText.text = "PawCoins: $" + amount;
+    }
+
+    static void SetButtonLabel(Button button, string label)
+    {
+        if (button == null || string.IsNullOrEmpty(label)) return;
+        TextMeshProUGUI text = button.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (text != null) text.text = label;
     }
     
     // ==================== PAUSE ====================
@@ -93,15 +101,19 @@ public class VillageManager : MonoBehaviour
     
     public void Pause()
     {
+        if (isPaused) return;
         isPaused = true;
-        Time.timeScale = 0f;
+        if (GameManager.Instance != null) GameManager.Instance.RequestPause();
+        else Time.timeScale = 0f;
         if (pausePanel) pausePanel.SetActive(true);
     }
     
     public void Resume()
     {
+        if (!isPaused) return;
         isPaused = false;
-        Time.timeScale = 1f;
+        if (GameManager.Instance != null) GameManager.Instance.ReleasePause();
+        else Time.timeScale = 1f;
         if (pausePanel) pausePanel.SetActive(false);
         if (settingsPanel) settingsPanel.SetActive(false);
     }
@@ -139,15 +151,19 @@ public class VillageManager : MonoBehaviour
     
     public void ReturnHome()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (SaveManager.Instance != null && GameManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
-        SceneManager.LoadScene(SceneNames.GameScene);
+        SceneManager.LoadScene(SceneNames.ShopScene);
     }
-    
+
     public void ReturnToMainMenu()
     {
-        Time.timeScale = 1f;
+        isPaused = false;
+        if (GameManager.Instance != null) GameManager.Instance.SetPaused(false);
+        else Time.timeScale = 1f;
         if (SaveManager.Instance != null && GameManager.Instance != null)
             SaveManager.Instance.SaveToDisk(GameManager.Instance.BuildSaveDataSnapshot());
         SceneManager.LoadScene(SceneNames.MainMenu);

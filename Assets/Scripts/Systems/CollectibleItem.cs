@@ -56,21 +56,27 @@ public class CollectibleItem : MonoBehaviour
     void Pickup()
     {
         if (collected) return;
-        collected = true;
-        // Complete quest objective
-        if (!string.IsNullOrEmpty(questId) && !string.IsNullOrEmpty(objectiveId))
+
+        // Only pick this up if it actually advances an active quest objective.
+        // Otherwise leave it in the world (prevents consuming an item for a quest
+        // that isn't active yet, which would soft-lock that quest).
+        bool tiedToQuest = !string.IsNullOrEmpty(questId) && !string.IsNullOrEmpty(objectiveId);
+        if (tiedToQuest)
         {
-            if (QuestSystem.Instance != null)
+            if (QuestSystem.Instance == null || !QuestSystem.Instance.IsObjectiveActive(questId, objectiveId))
             {
-                QuestSystem.Instance.CompleteObjective(questId, objectiveId);
+                Debug.Log($"[Collectible] {itemName} isn't needed right now — leaving it.");
+                return;
             }
+            QuestSystem.Instance.CompleteObjective(questId, objectiveId);
         }
-        
+
+        collected = true;
+
         // Play sound
         if (AudioManager.Instance != null && pickupSound != null)
             AudioManager.Instance.PlaySFX(pickupSound);
         
-        // Show notification
         Debug.Log($"[Collectible] Picked up: {itemName}");
         
         // Destroy item
@@ -79,7 +85,7 @@ public class CollectibleItem : MonoBehaviour
     
     void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Player"))
+        if (other.GetComponentInParent<PlayerController>() != null)
         {
             playerInRange = true;
             
@@ -93,7 +99,7 @@ public class CollectibleItem : MonoBehaviour
     
     void OnTriggerExit2D(Collider2D other)
     {
-        if (other.CompareTag("Player"))
+        if (other.GetComponentInParent<PlayerController>() != null)
         {
             playerInRange = false;
             
